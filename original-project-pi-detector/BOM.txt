@@ -1,0 +1,37 @@
+https://www.taydaelectronics.com/
+
+Item	Name	Quantity	Tayda #
+Arduino Nano	U1	1	
+ICL7660	U2	1	A-1051
+NE5534	U3	1	A-250
+CD4066	U4	1	A-555
+LM358	U5	1	A-045
+IRF9640	Q1	1	A-084
+2N3904	Q2	1	A-111
+2N3906	Q3, Q4, Q6	3	A-117
+MPSA13	Q5	1	A-432
+1N4148	D1, D2, D3	3	A-157
+10K	R1, R5, R10, R11, R13-17	9	A-2203
+Rd	R2	1	
+3R3 (2W)	R3	1	
+1K	R4, R6, R7, R21, R22, R28	6	A-2200
+1M	R8	1	A-2277
+22K	R9 R18, R27	3	A-2284
+100k preset	R12	1	A-587
+100K	R19, R26	2	A-2248
+150R	R20	1	A-2199
+220K	R23-R25	3	A-2329
+47K	R29	1	A-2279
+1000uF (Electro)	C1	1	A-4523
+220uF (Electro)	C2, C3, C9	3	A-1159
+100nF	C4, 5, 7 ,8 ,12 ,13 ,15	7	A-951
+470nF	C6, C10-11, C14	4	A-568
+10K pot	Sample delay, threshold	2	A-4879
+1K pot	Volume	1	A-3556
+Boost switch - On/Off		2	A-4567
+2-pin screw term		4	A-1189
+3-pin screw term		3	A-1190
+high-impedance speaker			
+2-8 socket		3	A-001
+2-14 socket		1	A-004
+3X 18650 case		1	A-5393

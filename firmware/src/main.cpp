@@ -1,155 +1,103 @@
+// Fuses needs to be set to
+// lfuse f1 - 16Mhz internal clock, no Divide clock by 8 internally
+// hfuse df - default
+// avrdude -p attiny85  -b 19200 -cusbtiny -U lfuse:w:0xf1:m
+// avrdude -p attiny85  -b 19200 -cusbtiny -U hfuse:w:0xdf:m
 #include "Arduino.h"
-// Arduino Pulse Induction Metal Detector
 
-// Pin assignments
-uint8_t txPin = 8;         // Assign pin 8 to TX output
-uint8_t mainSamplePin = 9; // Assign pin 9 to main sample pulse
-uint8_t efeSamplePin = 10; // Assign pin 10 to EFE sample pulse
-uint8_t audioPin = 11;     // Assign pin 11 to audio chopper
-uint8_t boostPin = 12;     // Assign pin 12 to boost switch
-uint8_t delayPin = A0;     // Assign delay pot to A0
+;                         // RESET is Attiny85 pin4
+#define delayPin A3       // Attiny85 pin2
+#define audioPin PB4      // Attiny85 pin3
+;                         // GND is Attiny85 pin4
+#define efeSamplePin PB0  // Attiny85 pin5
+#define mainSamplePin PB1 // Attiny85 pin6
+#define txPin PB2         // Attiny85 pin7
+;                         // VCC is Attiny85 pin8
 
-// Program constants
-const float normalPower = 50E-6;      // Normal TX-on time (50us)
-const float boostPower = 100E-6;      // Boost TX-on time (100us)
-const float clockCycle = 62.5E-9;     // Time for one clock cycle (1/16MHz)
-const uint32_t maxCount = 65535; // Value of 2^16 - 1
-const uint8_t readDelayLimit = 100;   // Wait 100 TX periods (100ms) before reading delay pot
-const uint8_t mosfetOn = HIGH;        // Mosfet turns on when transmitter input high
-const uint8_t mosfetOff = LOW;        // Mosfet turns off when transmitter input low
-const uint8_t syncDemodOn = LOW;      // Sample gate turns on when input high
-const uint8_t syncDemodOff = HIGH;    // Sample gate turns off when input low
+// Default Detector Timings, has to be multiple of 4us
+#define txPulseMicros 52    // Main pulse width
+#define mainDelayMicros 12  // Main sample pulse delay
+#define mainSampleMicros 52 // Main sample pulse width
+#define efeDelayMicros 240  // EFE sample pulse delay
+#define efeSampleMicros 52  // EFE sample pulse width
+#define txCycleMicros 1000  // total cycle width 1ms
+#define readDelayLimit 100  // Wait 100 cycle periods (100ms) before reading delay pot
+#define MICROS_ELAPSED 4    // 4us elapsed per each interrupt call
 
-// Detector timings
-float txOn = normalPower;       // TX-on time using normal power mode
-float defMainDelay = 10E-6;     // Default main sample delay (10us)
-float mainDelay = defMainDelay; // Main sample pulse delay
-float mainSample = 50E-6;       // Main sample pulse width (50us)
-float efeDelay = 240E-6;        // EFE sample pulse delay (240us)
-float efeSample = mainSample;   // EFE sample pulse width (same as main sample)
-float txPeriod = 1E-3;          // TX period (1ms)
-
-// Timing offsets
-float txOnOffset = 3E-6;        // TX-on pulse offset (3us)
-float mainDelayOffset = 4.2E-6; // Main delay pulse offset (4.2us)
-float mainSampleOffset = 3E-6;  // Main sample pulse offset (3us)
-float efeDelayOffset = 12E-6;   // EFE delay pulse offset (12us)
-float efeSampleOffset = 4E-6;   // EFE sample pulse offset (4us)
-float txPeriodOffset = 30E-6;   // TX period offset (30us)
-
-// Program variables
-float temp1, temp2, temp3, temp4, temp5, temp6; // Intermediate calculation variables
-uint16_t txOnCount;                                 // TX pulse
-uint16_t mainDelayCount;                            // Main sample delay
-uint16_t mainSampleCount;                           // Main sample pulse
-uint16_t efeDelayCount;                             // EFE sample delay
-uint16_t efeSampleCount;                            // EFE sample pulse
-uint16_t txPeriodCount;                             // TX period
-uint16_t delayVal = 0;                              // Delay pot value
-boolean readDelayPot = false;                   // Delay pot read (true or false)
-uint8_t intState = 0;                              // Interrupt state machine
-uint8_t readDelayCounter = 0;                      // Read delay pot counter
-
-void calcTimerValues()
-{
-    if (digitalRead(boostPin) == HIGH)
-    {                       // Get boost switch position
-        txOn = normalPower; // Set TX-on to 50us if HIGH
-    }
-    else
-    {
-        txOn = boostPower; // Set TX-on to 100us if LOW
-    }
-    temp1 = (txOn - txOnOffset) / clockCycle;
-    txOnCount = maxCount - int(temp1); // TX-on count for Timer1
-    temp2 = (mainDelay - mainDelayOffset) / clockCycle;
-    mainDelayCount = maxCount - int(temp2); // Main sample delay count for Timer1
-    temp3 = (mainSample - mainSampleOffset) / clockCycle;
-    mainSampleCount = maxCount - int(temp3); // Main sample pulse count for Timer1
-    temp4 = (efeDelay - efeDelayOffset) / clockCycle;
-    temp4 -= temp3 + temp2;
-    efeDelayCount = maxCount - int(temp4); // EFE sample delay count for Timer1
-    temp5 = (efeSample - efeSampleOffset) / clockCycle;
-    efeSampleCount = maxCount - int(temp5); // EFE sample pulse count for Timer 1
-    temp6 = (txPeriod - txPeriodOffset) / clockCycle;
-    temp6 -= temp1 + temp2 + temp3 + temp4 + temp5;
-    txPeriodCount = maxCount - int(temp6); // TX period count for Timer1
-}
-
-ISR(TIMER1_OVF_vect)
-{
-    switch (intState)
-    {
-    case 0:
-        TCNT1 = txOnCount;             // Load Timer1 with TX-ON count
-        digitalWrite(txPin, mosfetOn); // Turn on Mosfet
-        intState = 1;
-        break;
-    case 1:
-        TCNT1 = mainDelayCount;         // Load Timer1 with main sample delay count
-        digitalWrite(txPin, mosfetOff); // Turn off Mosfet
-        intState = 2;
-        break;
-    case 2:
-        TCNT1 = mainSampleCount;                  // Load Timer1 with main sample pulse count
-        digitalWrite(mainSamplePin, syncDemodOn); // Turn on main sample gate
-        intState = 3;
-        break;
-    case 3:
-        TCNT1 = efeDelayCount;                     // Load Timer1 with EFE sample delay count
-        digitalWrite(mainSamplePin, syncDemodOff); // Turn off main sample gate
-        if (readDelayPot == false)
-        {                       // Check if read delay pot flag is false
-            readDelayCounter++; // Increment read delay counter
-            if (readDelayCounter >= readDelayLimit)
-            {                         // Check if read delay counter has reached limit
-                readDelayPot = true;  // Enable read of delay pot
-                readDelayCounter = 0; // Clear read delay counter
-            }
-        }
-        intState = 4;
-        break;
-    case 4:
-        TCNT1 = efeSampleCount;                  // Load Timer1 with EFE sample pulse count
-        digitalWrite(efeSamplePin, syncDemodOn); // Turn on EFE sample gate
-        intState = 5;
-        break;
-    case 5:
-        TCNT1 = txPeriodCount;                    // Load Timer1 with TX period count
-        digitalWrite(efeSamplePin, syncDemodOff); // Turn off EFE sample gate
-        intState = 0;
-        break;
-    default:
-        intState = 0;
-        break;
-    }
-}
+uint8_t intState;
+uint8_t readDelayCounter = 0;
+boolean readDelayPot = false;
+uint8_t varMainDelayMicros = mainDelayMicros;
 
 void setup()
 {
-    pinMode(txPin, OUTPUT);          // Set TX pin to output mode
-    pinMode(mainSamplePin, OUTPUT);  // Set main sample pin to output mode
-    pinMode(efeSamplePin, OUTPUT);   // Set EFE sample pin to output mode
-    pinMode(boostPin, INPUT_PULLUP); // Set Boost switch pin to input mode with pullup resistor
-    calcTimerValues();               // Calculate all timer values
-    noInterrupts();                  // Disable interrupts
-    TCCR1A = 0;                      // Initialize Timer1 registers
-    TCCR1B = 0;
-    TIMSK0 = 0;                 // Clear Timer0 mask register to eliminate jitter
-    TCNT1 = txOnCount;          // Load Timer1 with TX-on count
-    TCCR1B |= (1 << CS10);      // No prescaling for Timer1
-    TIMSK1 |= (1 << TOIE1);     // Enable Timer1 overflow interrupt
-    interrupts();               // Enable interrupts
+    // chip specific adjustment to local oscilator
+    OSCCAL = 75;
+
+    pinMode(txPin, OUTPUT);         // Set TX pin to output mode
+    pinMode(mainSamplePin, OUTPUT); // Set main sample pin to output mode
+    pinMode(efeSamplePin, OUTPUT);  // Set EFE sample pin to output mode
+    pinMode(delayPin, INPUT);
+
+    // initialize the timer0
+    cli();
+    TCCR0A = (1 << WGM01);              // Put timer0 in CTC mode and clear other bits
+    TCCR0B = (1 << CS01) | (1 << CS00); // Timer0 prescaling 64 and clearing other bits
+    TIMSK |= (1 << OCIE0A);             // enable timer1 compare interrupt
+    OCR0A = 0;                          // set the timer0 count  - Count 0 cycles before calling ISR interrupt i.e. each 64cycles i.e. 4us
+    sei();
+    pinMode(audioPin, OUTPUT);
     analogWrite(audioPin, 127); // Set audioPin with 50% duty cycle PWM
 }
 
 void loop()
 {
-    if (readDelayPot == true)
+}
+
+// called every 4uS, 64CPU cycles in each 4us
+ISR(TIM0_COMPA_vect)
+{
+    switch (intState)
     {
-        delayVal = analogRead(delayPin);                  // Read the delay pot
-        mainDelay = defMainDelay + delayVal * clockCycle; // Offset main sample delay
-        calcTimerValues();                                // Calculate new timer values
-        readDelayPot = false;                             // Set read delay pot flag to false
+    case 0:
+        OCR0A = txPulseMicros / MICROS_ELAPSED;
+        PORTB |= (1 << txPin); // Turn on Mosfet
+        intState++;
+        break;
+    case 1:
+        OCR0A = varMainDelayMicros / MICROS_ELAPSED;
+        PORTB &= ~(1 << txPin); // Turn off Mosfet
+        intState++;
+        break;
+    case 2:
+        OCR0A = mainSampleMicros / MICROS_ELAPSED;
+        PORTB &= ~(1 << mainSamplePin); // Turn on mainSample
+        intState++;
+        break;
+    case 3:
+        OCR0A = efeDelayMicros / MICROS_ELAPSED;
+        PORTB |= (1 << mainSamplePin); // Turn off mainSample
+        intState++;
+        break;
+    case 4:
+        OCR0A = efeSampleMicros / MICROS_ELAPSED;
+        PORTB &= ~(1 << efeSamplePin); // Turn on efeSample
+        intState++;
+        break;
+    case 5:
+        // ~24us (magic number) were spent on this case() code block execution
+        uint32_t total = txPulseMicros + varMainDelayMicros + mainSampleMicros + efeDelayMicros + efeSampleMicros + 19;
+        OCR0A = (txCycleMicros - total) / MICROS_ELAPSED;
+        PORTB |= (1 << efeSamplePin); // Turn off efeSample
+        intState = 0;
+
+        readDelayCounter++;
+        if (readDelayCounter >= readDelayLimit)
+        {
+            varMainDelayMicros = mainDelayMicros + analogRead(delayPin) / 10;
+            readDelayCounter = 0;
+        }
+
+        break;
     }
 }

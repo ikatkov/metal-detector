@@ -1,0 +1,33 @@
+Design #3. With two stages amplification and noise canceling opamp
+Better than before. The AC noise is almost gone.
+Yet, 1.5V p-p random noise is present in the final signal. There is some constant buzzing if sensitivity threshold is low.
+1.5V seems large, but because it's low freq noise it peaks (over the threshold a few) so I can now put threshold lower than before.
+
+I also noticed that reaction is a bit sluggish i.e. one needs to swipe target at medium speed over the coil.
+
+The noise is not coming from the pot wires, I tested it. The pot that sets sensitivity threshold.
+
+The noise comes from the signal samples, main and EFE I think. It's a small residual noise, which gets amplified twice - once in the differential opamp and second time in the threshold opamp.
+
+I tried to increase input resistors to audio stage from 1K to 10k and 100k. With each increase the radom noise became less and less, but sensitivity to metal object was also dropping proportional. 100K is unusable. 1K is the best depth.
+
+The main pre-amp seems to be peaking at -1V i.e. does not below. This is strange because power rails are +-5V. I'd expect it to reach at least -3V
+May be 100 Ohm filter resistors on input rails are too large. I should try to lower them to 33 Ohm for example. May be increase negative rail cap?
+
+I tried to increase first pre-amp stage gain to 100 by changing feedback resistor  10k -> 100k. It became worse, something is clearly saturating and the whole thing is unusable 
+
+I wonder if the output signal from the last opamp that has this noise there can be filtered further. It might be challenging since the freq is so low like ~100Hz
+
+I wonder what D3 1N4148 does in the output audio...
+
+
+TODO
+1. Lower filter resistors to 33 Ohm, see if raw signal level increases
+2. Remove 47uF from the pre-amp, see if noise decreases
+2. Replace rail caps 47uF -> 100uF, see if raw signal level increases
+3. Lower first resistor pair in pre-amp from 1k,10k to 100,1k see if noise decreases
+3. Simulate output audo subsircuit in LTSpice how D3 1N4148 affect things?
+3. Disconnect the main coil, see how noise changes
+4. Measure spike current over 2.6Ohm resistor, is it safe for batteries?
+5. Test with battery outside, listen how noise changes
+6. Change resistor from the last opamp, there 22k R29 now. Replace with 10k fixed, see if better, may be 10k fixed + 20k pot like in beachmaster (R39+RV5)

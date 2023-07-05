@@ -1,0 +1,142 @@
+re-route, put switching caps away from signal path, like facing the other way from opamp
+
+ground track/shield around dc pump reduces ringing
+future idea: it would help to shift pump pulse toward the end of cycle i.e. falling edge happens
+when the main pulse either has not started or at the same time it starts
+it will hide the glitch
+see if the coil is "fast enough" for this to actually matter, if coil recovery is over 8us - it does not matter
+because sampling can only start after the recovery
+
+
+
+
+1. Test if LT1054 
+all LT1054CP do not work at all, with external OSC (throw away?)
+test them in the new config, throw away is not working
+
+remove voltage reference, power from 5V
+it's not 50% PWM it's like 50/1000 5% PWM. Raising edge of the main pulse starts the coil, falling edge closes the MOSFET
+
+
+
+----
+R23 C11 220k, 470nF control the SAT on the first LM358
+470n*220k = 100ms
+Is SAT == saturation? Saturation of what?
+
+-------
+
+2. Check if I have teflon PTFE wire, that weird mil-spec dark red one. Need PTFE Silver Plated Copper Wire
+~15 per coil
+
+
+----
+The value of the damping resistor is based on all the capacitance that the coil sees. It comes from these primary sources.
+1. Coil turn to turn capacitance
+2. Coil to shield capacitance
+3. Coil coax cable capacitance.
+4. MOSFET COSS
+
+The damping resistor is actually damping the capacitive energy that occurs when the TX discharge pulse drops and then starts to oscillate. Reduced coil seen capacitance allows a higher damping resistor value to be used and allow a steeper discharge pulse slope that more efficiently stimulates low TC targets.
+
+Go to the articles section of this forum and go to projects to see the article I wrote in 2006, Making a fast PI mono coil for more detailshttps://www.geotech1.com/cgi-bin/pag...oils/index.dat.
+
+The easiest way to make a faster coil is to use coil wire insulation with a low dielectric constant such as Teflon. Put a diode in series between the MOSFET and the coil to minimize the MOSFET COSS that the coil sees. Use the shortest and lowest capacitance coax cable that you can find.
+
+-----
+
+Damp the coil until thereis no rining
+---
+
+Null the preamp (NE5534P), until the output is ~0V
+---
+main pulse 50us, every 1ms
+sampe pulse 50us, seems like a few us, 10us? after the first one, i.e. 60us offset
+
+EFE stands for "earth field elimination"
+efe pulse is 50us, ~280us offset from the main one
+----
+
+TP12 is audio chopper, arduino 490Hz, 50% duty (simple PWM)
+---
+the first lm358 substracts earth field from the amplified signal
+by the time of the EFE pulse, the signal induced by the metal thing has faded away, so the only signal left
+is the earth field 
+---
+There is a 10k pot hooked to arduino A0, that control the delay of the sample signal, shifting it
+from 50us offset to ~75us
+manually adjust the delay so that it starts right after the preamp output coming from negative saturation
+https://youtu.be/G1gUYHVw20k?list=PLgBlcFVgN7pREMVahftvygh0x9WRf4jag&t=113
+
+---
+https://www.geotech1.com/forums/forum/projects/arduino-nano-pi/16537-arduino-nano-pi-main-discussion?p=300451#post300451
+
+suggest to eliminate drivers for the 4066, only opamp is now using -5V
+
+If we supply the 4066 with a single 5 volt supply
+then it opens and closes normally,
+but the analog signal that is managed and passes through
+it, this must also be from 0 to 5v. thats why i reversed the
+
+----
+notice that DC invertor ICL7660 is synchronized to the main pulse
+
+You want to synchronize the transmitter to the converter.
+This is to avoid the switching transients that might interfere with the receive signal if you were to let the 7660 run on its own. This is covered on page 10 of the book.
+
+in my case with lt1054 - original schematic needs to be modified 
+to use external voltage referene to set the voltage, so that the OSC pin can be driven by NPN from arduino
+and pulled up to REF
+https://www.ti.com/lit/ds/symlink/lt1054.pdf
+
+This will increase ripple (might be not a problem? add more output caps?)
+Would LT1054 even run on 1Khz?
+
+----
+
+ppl report that the coild is not very "fast"
+
+Now I am off trying to build a higher performance coil. I have the fast coil article that I have read through multiple time. I started off with a basic round coil, per the book. Then built two elliptical coils, and lastly I tried my hand at making a basic basket coil. Got the basket correct on the secound try. But none of these seem to respond all that much faster. All my coils are right around 18~20uS response time. I have always aimed for the same specs 300~400uH, and I have hit that range every time. Using a spool of 26awg magnet/speaker wire. I know Teflon insulation should help, but I am currently working with what I have. Happy to invest in the better wire, once I have the basic coil building technique hammered out.
+
+
+That looks like the pre-amp recovery time. The NE5534 is not known to recover from output overloads very quick.
+This subject has many threads and some solutions that improve pre-amp recovery time. The most common is a two stage pre-amp.
+
+----
+
+code improvements
+https://www.geotech1.com/forums/forum/projects/arduino-nano-pi/16537-arduino-nano-pi-main-discussion?p=303944#post303944
+
+see messages and code below
+----
+
+ppl say basket coil is superior +20% depth due to less capacitance
+http://www.metdet.ru/Sensor_K1.htm
+ 'Basket' coil' is the same as the 3DSS coil
+ 3d seld-shielding, as the 'outer' turns effectively shield the main bulk of the coil.
+
+
+https://www.geotech1.com/forums/filedata/fetch?id=361567
+
+I like the 12x6", but I have a 14x7" elliptical basket in the works.
+
+Take these measurements all with a grain of salt.
+Field tested 12x6" elliptical coil I can reliably pick up a US Nickel at 7 inches (18CM).
+6.5" Basket coil I can reliably pick up a US Nickel at 9 inches (23CM).
+
+-----
+
+two steps pre-amp based on two NE5532
+https://www.geotech1.com/forums/filedata/fetch?id=361646
+
+
+----
+
+R24 (220k) control SAT (self adjusting threshold) of the first integrator. Can replace it with R47 in parallel with 1M pot, to fine-tune how long it takes to saturate. Default is 470nF*220K = 100ms
+People who made it adjustable report that it reduces the buzz
+
+---------
+first coil. 8.5" diameter, teflon wire, 32awg
+300uH
+147pF 
+resonance 758kHz

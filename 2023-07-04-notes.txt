@@ -1,0 +1,16 @@
+preamps stages with caps on feedback are actually opamp integrators
+without the cap the gain becomes 1 at 400kHz - 4Mhz GBP / 10x gain - this is where 20db/decade slops hist 0db
+the cap sets 3db point, i.e. the freq where slope starts
+until that freq the gain is ~ 10x (resistors ratio)
+200pF caps with 100k feedback resistor gives 
+1/(2*pi*Rf*Cf) = 1/(2*pi*10e3*200e-12) = 80kHz
+opamp tau = RC = 2us => can detect 10us targets
+
+
+=>  If you only want to detect a 1us target then shoot for a 200ns tau. 
+i.e 20pF Cf
+May be change capc 200pF -> 20pF
+
+
+https://www.geotech1.com/forums/forum/technology/pi-technology/16517-usual-fast-preamp-questions
+

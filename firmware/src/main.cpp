@@ -15,14 +15,14 @@
 ;                         // VCC is Attiny85 pin8
 
 // Default Detector Timings, has to be multiple of 4us
-#define txPulseMicros 52    // Main pulse width
-#define mainDelayMicros 12  // Main sample pulse delay
-#define mainSampleMicros 52 // Main sample pulse width
-#define efeDelayMicros 240  // EFE sample pulse delay
-#define efeSampleMicros 52  // EFE sample pulse width
-#define txCycleMicros 1000  // total cycle width 1ms
-#define readDelayLimit 100  // Wait 100 cycle periods (100ms) before reading delay pot
-#define MICROS_ELAPSED 4    // 4us elapsed per each interrupt call
+#define txPulseMicros 52       // Main pulse width
+#define mainDelayMicros 6     // Main sample pulse delay
+#define mainSampleMicros 52    // Main sample pulse width
+#define efeDelayMicros 300     // EFE sample pulse delay
+#define efeSampleMicros 52     // EFE sample pulse width
+#define txCycleMicros 1020     // total cycle width 1ms
+#define readDelayLimit 100     // Wait 100 cycle periods (100ms) before reading delay pot
+#define MICROS_PER_INTERRUPT 4 // 4us elapsed per each interrupt call
 
 uint8_t intState;
 uint8_t readDelayCounter = 0;
@@ -60,41 +60,42 @@ ISR(TIM0_COMPA_vect)
     switch (intState)
     {
     case 0:
-        OCR0A = txPulseMicros / MICROS_ELAPSED;
+        OCR0A = txPulseMicros / MICROS_PER_INTERRUPT;
         PORTB |= (1 << txPin); // Turn on Mosfet
         intState++;
         break;
     case 1:
-        OCR0A = varMainDelayMicros / MICROS_ELAPSED;
+        OCR0A = varMainDelayMicros / MICROS_PER_INTERRUPT;
         PORTB &= ~(1 << txPin); // Turn off Mosfet
         intState++;
         break;
     case 2:
-        OCR0A = mainSampleMicros / MICROS_ELAPSED;
+        OCR0A = mainSampleMicros / MICROS_PER_INTERRUPT;
         PORTB &= ~(1 << mainSamplePin); // Turn on mainSample
         intState++;
         break;
     case 3:
-        OCR0A = efeDelayMicros / MICROS_ELAPSED;
+        OCR0A = (efeDelayMicros + varMainDelayMicros) / MICROS_PER_INTERRUPT;
         PORTB |= (1 << mainSamplePin); // Turn off mainSample
         intState++;
         break;
     case 4:
-        OCR0A = efeSampleMicros / MICROS_ELAPSED;
+        OCR0A = efeSampleMicros / MICROS_PER_INTERRUPT;
         PORTB &= ~(1 << efeSamplePin); // Turn on efeSample
         intState++;
         break;
     case 5:
-        // ~24us (magic number) were spent on this case() code block execution
+        // ~19us (magic number) were spent on this case() code block execution
         uint32_t total = txPulseMicros + varMainDelayMicros + mainSampleMicros + efeDelayMicros + efeSampleMicros + 19;
-        OCR0A = (txCycleMicros - total) / MICROS_ELAPSED;
+        OCR0A = (txCycleMicros - total) / MICROS_PER_INTERRUPT;
         PORTB |= (1 << efeSamplePin); // Turn off efeSample
         intState = 0;
 
         readDelayCounter++;
         if (readDelayCounter >= readDelayLimit)
         {
-            varMainDelayMicros = mainDelayMicros + analogRead(delayPin) / 10;
+            // analogRead returns 0-1023 i.e. adds 0-200us
+            varMainDelayMicros = mainDelayMicros + 2 * analogRead(delayPin) / 10;
             readDelayCounter = 0;
         }
 
